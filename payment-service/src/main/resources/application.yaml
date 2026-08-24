@@ -1,3 +1,37 @@
 spring:
   application:
     name: payment-service
+  datasource:
+    url: jdbc:postgresql://postgres-db:5432/payment_service_db
+    username: myuser
+    password: mypassword
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+    #just producer for the payment since we are just publishing in payment service
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+server:
+  port:8083
+
+# razorpay configuration
+razorpay:
+  key-id: rzp_3298y8
+  key-secret:
+  webhook-secret:
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
