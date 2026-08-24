@@ -37,7 +37,7 @@ public class PaymentService {
     private static final String PAYMENT_FAILED_TOPIC="payment.failed";
     private final KafkaTemplate<String,Object> kafkaTemplate;
     /*
-     * creating the razor pay payment orderfirstly by creating the order in the payment gateway
+     * creating the razor pay payment order firstly by creating the order in the payment gateway
      * saving payment record in db
      * returning the order detail to front end
      * user pays
@@ -54,7 +54,7 @@ public class PaymentService {
                 .intValue();
         JSONObject orderRequest= new JSONObject();
         orderRequest.put("amount", convertedAmount);
-        orderRequest.put("currency","USD/INR");
+        orderRequest.put("currency","INR");
         orderRequest.put("receipt","rcpt_"+ System.currentTimeMillis()+UUID.randomUUID().toString()
                 .replace("-","").substring(0,10));
 
@@ -84,7 +84,7 @@ public class PaymentService {
    // for real payment webhook is not mandatory but recommended
     // payment gateway provides the webhook to capture the events on frontend to notify it to backend for actions( if failed, if succeed)
     public void handleWebhook(Map<String, Object> payload) {
-        log.info("Received Razorrpay webhook: {}",payload.get("event"));
+        log.info("Received Razorpay webhook: {}",payload.get("event"));
         String event= (String) payload.get("event");
         if("payment.captured".equals(event)){
             handlePaymentSuccess(payload);

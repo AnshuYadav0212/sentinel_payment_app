@@ -35,10 +35,15 @@ public class FraudDetectionService {
     private final RedisTemplate<String,String> redisTemplate;
     private final KafkaTemplate<String,Object> kafkaTemplate;
 
-    public void checkTransaction(Map<String, String> payload){
+    public void checkTransaction(Map<String, Object> payload){
         String transactionId=(String)payload.get("transactionId");
         String accountNumber=(String)payload.get("senderAccountNumber");
-        BigDecimal amount= new BigDecimal(payload.get("amount"));
+        Object amountObj = payload.get("amount");
+        BigDecimal amount = null;
+
+        if (amountObj != null) {
+            amount = new BigDecimal(amountObj.toString());
+        }
 
         /*
          * fetch real balance from account service

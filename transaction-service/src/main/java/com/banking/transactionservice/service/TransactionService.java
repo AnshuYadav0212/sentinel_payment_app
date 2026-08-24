@@ -33,13 +33,6 @@ public class TransactionService {
     private final KafkaTemplate<String,Object> kafkaTemplate;
     private final RedisTemplate<String,String> redisTemplate;
     private final TransactionCompletedEvent transactionCompletedEvent;
-    public TransactionService(TransactionRepository transactionRepository, AccountServiceClient accountServiceClient, KafkaTemplate<String, Object> kafkaTemplate, RedisTemplate<String, String> redisTemplate, TransactionCompletedEvent transactionCompletedEvent) {
-        this.transactionRepository = transactionRepository;
-        this.accountServiceClient = accountServiceClient;
-        this.kafkaTemplate = kafkaTemplate;
-        this.redisTemplate = redisTemplate;
-        this.transactionCompletedEvent = transactionCompletedEvent;
-    }
 
     private static final String TRANSACTION_INITIATED_TOPIC="transaction.initiated";
     private static final String TRANSACTION_COMPLETED_TOPIC="transaction.completed";
@@ -103,14 +96,11 @@ public class TransactionService {
     }
 
     public TransactionResponse getTransaction(String transactionId) {
-
-
         return mapToResponse(transactionRepository
                         .findById(transactionId)
                         .orElseThrow(()-> new RuntimeException(
                                 "Transaction not found!! " +transactionId
                         )));
-
     }
 
     public List<TransactionResponse> getTransactionHistory(String accountNumber) {
@@ -193,22 +183,16 @@ public class TransactionService {
         );
         kafkaTemplate.send(TRANSACTION_COMPLETED_TOPIC,transaction.getId(),completedEvent);
         log.info("saga is completed, transaction {} is completed",transaction.getId());
-
     }
     public void processCleanResult(String transactionId){
         Transaction transaction=transactionRepository.findById(transactionId)
                 .orElseThrow(()-> new RuntimeException(
                         "Transaction is not found "+transactionId
                 ));
-
         if(transaction.getStatus() != TransactionStatus.PROCESSING){
             log.warn("Transaction {} is not processing, it is skipping ", transactionId);
             return;
         }
-
         completeTransaction(transaction);
-
-
     }
-
 }
