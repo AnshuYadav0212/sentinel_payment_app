@@ -1,0 +1,55 @@
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Eclipse / STS
+.classpath
+.project
+.settings/
+.factorypath
+.springBeans
+.sts4-cache
+.apt_generated
+
+# VS Code
+.vscode/
+
+# Maven
+target/
+**/target/
+
+# Maven wrapper generated binary
+.mvn/wrapper/maven-wrapper.jar
+
+# Gradle
+.gradle/
+build/
+**/build/
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+
+# Local databases / generated data
+*.db
+*.sqlite
+*.sqlite3
+
+# Test reports
+surefire-reports/
+failsafe-reports/
