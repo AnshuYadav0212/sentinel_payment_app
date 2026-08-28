@@ -33,7 +33,7 @@ public class TransactionController {
         return ResponseEntity.ok(transactionService.getTransaction(transactionId));
     }
 
-    @GetMapping("/accunt/{accountNumber}")
+    @GetMapping("/account/{accountNumber}")
     public ResponseEntity<List<TransactionResponse>> getTransactionHistory(
             @PathVariable String accountNumber){
         return ResponseEntity.ok(transactionService.getTransactionHistory(accountNumber));
