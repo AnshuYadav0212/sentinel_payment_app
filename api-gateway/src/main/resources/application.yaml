@@ -3,52 +3,56 @@ spring:
     name: api-gateway
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${API_GATEWAY_REDIS_HOST}
+      port: ${API_GATEWAY_REDIS_PORT}
+  main:
+    web-application-type: reactive
   cloud:
     gateway:
-      routes:
+      server:
+        webflux:
+          routes:
+            # Account service routes
+            - id: account-service
+              uri: ${API_GATEWAY_ACCOUNT_SERVICE_URI}
+              predicates:
+                - Path=/api/v1/accounts/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 10
+                    redis-rate-limiter.burstCapacity: 25
 
-        # Account servicde routes
-        - id: account-service
-          url: http://localhost:8081
-          predicates:
-            - Path=/api/v1/account/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                redis-rate-limiter-replenishRate: 10
-                redis-rate-limiter-burstCapacity: 25
+            # transaction service routes
+            - id: transaction-service
+              uri: ${API_GATEWAY_TRANSACTION_SERVICE_URI}
+              predicates:
+                - Path=/api/v1/transactions/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 10
+                    redis-rate-limiter.burstCapacity: 25
 
-        # transaction servicde routes
-        - id: transaction-service
-          url: http://localhost:8082
-          predicates:
-            - Path=/api/v1/transactions/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                redis-rate-limiter-replenishRate: 10
-                redis-rate-limiter-burstCapacity: 25
-
-
-            # payments servicde routes
+            # payments service routes
             - id: payment-service
-              url: http://localhost:8083
+              uri: ${API_GATEWAY_PAYMENT_SERVICE_URI}
               predicates:
                 - Path=/api/v1/payments/**
               filters:
                 - name: RequestRateLimiter
                   args:
-                    redis-rate-limiter-replenishRate: 5
-                    redis-rate-limiter-burstCapacity: 15
+                    redis-rate-limiter.replenishRate: 5
+                    redis-rate-limiter.burstCapacity: 15
 
 server:
-  port: 8080
+  port: ${API_GATEWAY_SERVER_PORT}
 
 management:
   endpoints:
     web:
       exposure:
         include: health,info,gateway
+
+
 

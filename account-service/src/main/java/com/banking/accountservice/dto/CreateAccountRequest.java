@@ -6,6 +6,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -28,10 +29,10 @@ public class CreateAccountRequest {
     @NotBlank(message = "Phone number is required")
     private String phone;
 
-    @NotBlank(message = "Account Type is Required")
+    @NotNull(message = "Account Type is Required")
     private AccountType accountType;
 
-    @NotBlank(message = "Initial Deposit is required")
+    @NotNull(message = "Initial Deposit is required")
     @Positive(message = "Initial deposit must be positive")
     private BigDecimal initialDeposit;
 

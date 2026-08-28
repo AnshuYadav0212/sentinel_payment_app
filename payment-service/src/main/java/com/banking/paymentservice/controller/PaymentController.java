@@ -23,7 +23,7 @@ import java.util.Map;
 public class PaymentController {
     private final PaymentService paymentService;
 
-    //webhook is inbuilt in event and it capture upon completion and update the backend
+    //webhook is inbuilt event, and it captures upon completion and update the backend
     @PostMapping("/create-order")
     public ResponseEntity<PaymentOrderResponse> createPaymentOrder(
             @Valid @RequestBody CreatePaymentRequest request
@@ -40,6 +40,26 @@ public class PaymentController {
     ){
         paymentService.handleWebhook(payload);
         return ResponseEntity.ok("Webhook processed");
+    }
+
+    @PostMapping("/verify")
+    public ResponseEntity<Map<String, Object>> verifyPayment(
+            @RequestBody Map<String, String> request
+    ) throws RazorpayException {
+
+        paymentService.verifyPayment(
+                request.get("paymentId"),
+                request.get("razorpayPaymentId"),
+                request.get("razorpayOrderId"),
+                request.get("razorpaySignature")
+        );
+
+        return ResponseEntity.ok(
+                Map.of(
+                        "status", "COMPLETED",
+                        "message", "Payment verified and account credited"
+                )
+        );
     }
 
 

@@ -1,5 +1,6 @@
 package com.banking.transactionservice.service;
 
+import com.banking.transactionservice.client.AccountLookupResponse;
 import com.banking.transactionservice.client.AccountServiceClient;
 import com.banking.transactionservice.dto.TransactionResponse;
 import com.banking.transactionservice.dto.TransferRequest;
@@ -15,12 +16,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
-
-
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -31,8 +31,7 @@ public class TransactionService {
     private final TransactionRepository transactionRepository;
     private final AccountServiceClient accountServiceClient;
     private final KafkaTemplate<String,Object> kafkaTemplate;
-    private final RedisTemplate<String,String> redisTemplate;
-    private final TransactionCompletedEvent transactionCompletedEvent;
+    private final RedisTemplate<String,Object> redisTemplate;
 
     private static final String TRANSACTION_INITIATED_TOPIC="transaction.initiated";
     private static final String TRANSACTION_COMPLETED_TOPIC="transaction.completed";
@@ -45,9 +44,20 @@ public class TransactionService {
     *
      */
 
+    private void validateAccount(String accountNumber) {
+        AccountLookupResponse receiver =
+                accountServiceClient.getAccount(accountNumber);
+
+        if (!"ACTIVE".equals(receiver.status())) {
+            throw new IllegalStateException(
+                    "Check account, current account is not active/exists"
+            );
+        }
+    }
+
     public TransactionResponse transfer( TransferRequest request) {
         log.info("SAGA started to transfer from: {} to account {} of rupees: {}", request.getSenderAccountNumber(),request.getReceiverAccountNumber(),request.getAmount());
-
+        validateAccount(request.getReceiverAccountNumber());
         accountServiceClient.deductBalance(
                 request.getSenderAccountNumber(),
                 request.getAmount()
@@ -58,8 +68,10 @@ public class TransactionService {
         transaction.setAmount(request.getAmount());
         transaction.setType(TransactionType.TRANSFER);
         transaction.setStatus(TransactionStatus.PROCESSING);
-        transaction.setDescription(transaction.getDescription());
-        transaction.setReferenceNumber(transaction.getReferenceNumber());
+        transaction.setDescription(request.getDescription());
+        transaction.setReferenceNumber(UUID.randomUUID().toString());
+        transaction.setCompletedAt(LocalDateTime.now());
+        transaction.setCreatedAt(LocalDateTime.now());
 
         Transaction savedTransaction= transactionRepository.save(transaction);
         log.info(" Transaction saved as PROCESSING: for transaction {}",savedTransaction.getId());
@@ -78,6 +90,8 @@ public class TransactionService {
         return mapToResponse(savedTransaction);
     }
 
+
+
     private TransactionResponse mapToResponse(Transaction transaction ){
         TransactionResponse response=new TransactionResponse();
         response.setId(transaction.getId());
@@ -89,7 +103,7 @@ public class TransactionService {
         response.setDescription(transaction.getDescription());
         response.setReferenceNumber(transaction.getReferenceNumber());
         response.setFailureReason(transaction.getFailureReason());
-        response.setCreateAt(transaction.getCreateAt());
+        response.setCreatedAt(transaction.getCreatedAt());
         response.setCompletedAt(transaction.getCompletedAt());
 
         return response;
@@ -117,11 +131,37 @@ public class TransactionService {
                .orElseThrow(()->new RuntimeException(
                        "Transaction not found "+transactionId
                ));
+
+        if (transaction.getStatus() == TransactionStatus.COMPLETED) {
+            log.info(
+                    "Transaction {} is already completed. Ignoring duplicate OTP verification.",
+                    transactionId
+            );
+            return mapToResponse(transaction);
+        }
+        if (transaction.getStatus() == TransactionStatus.FLAGGED ||
+                transaction.getStatus() == TransactionStatus.FAILED) {
+
+            log.info(
+                    "Transaction {} is already in terminal state {}. Ignoring verification.",
+                    transactionId,
+                    transaction.getStatus()
+            );
+
+            return mapToResponse(transaction);
+        }
+
+        if (transaction.getStatus() != TransactionStatus.PENDING_VERIFICATION) {
+            throw new IllegalStateException(
+                    "Transaction is not awaiting OTP verification"
+            );
+        }
        String otpKey="verification:otp"+transactionId;
-       String storedOtp=redisTemplate.opsForValue().get(otpKey);
+       String storedOtp=(String)redisTemplate.opsForValue().get(otpKey);
+
        if(storedOtp==null){
            // otp is expired
-           log.warn("OTP is expired for transaction : {}",transactionId);
+           log.warn("OTP is expired for transaction : {} ",transactionId);
            compensateTransaction(transaction,"OTP expired, transaction is cancelled and amount is refunded to the sender");
            return mapToResponse(transaction);
        }
@@ -137,6 +177,7 @@ public class TransactionService {
        completeTransaction(transaction);
        return mapToResponse(transaction);
     }
+
     private void compensateTransaction(Transaction transaction,String reason){
         log.warn("saga compensation, refunding to  {} for amount: {}", transaction.getSenderAccountNumber(),transaction.getAmount());
         // credit money back to the sender
@@ -157,7 +198,7 @@ public class TransactionService {
     }
 
     private void blockAccountAndCompensate(Transaction transaction, String reason){
-         // this will publish te fraud detedcction and account service will block account
+         // this will publish te fraud detection and account service will block account
         Map<String,Object> fraudEvent=new HashMap<>();
         fraudEvent.put("transactionId",transaction.getId());
         fraudEvent.put("accountNumber",transaction.getSenderAccountNumber());
@@ -169,6 +210,7 @@ public class TransactionService {
         //now saga compensation refund sender
         compensateTransaction(transaction,reason);
     }
+
     private void completeTransaction(Transaction transaction){
         transaction.setStatus(TransactionStatus.COMPLETED);
         transaction.setCompletedAt(LocalDateTime.now());
@@ -184,6 +226,7 @@ public class TransactionService {
         kafkaTemplate.send(TRANSACTION_COMPLETED_TOPIC,transaction.getId(),completedEvent);
         log.info("saga is completed, transaction {} is completed",transaction.getId());
     }
+
     public void processCleanResult(String transactionId){
         Transaction transaction=transactionRepository.findById(transactionId)
                 .orElseThrow(()-> new RuntimeException(
@@ -195,4 +238,5 @@ public class TransactionService {
         }
         completeTransaction(transaction);
     }
+
 }

@@ -2,9 +2,9 @@ spring:
   application:
     name: payment-service
   datasource:
-    url: jdbc:postgresql://postgres-db:5432/payment_service_db
-    username: myuser
-    password: mypassword
+    url: ${PAYMENT_SERVICE_DATASOURCE_URL}
+    username: ${PAYMENT_SERVICE_DATASOURCE_USERNAME}
+    password: ${PAYMENT_SERVICE_DATASOURCE_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -15,18 +15,18 @@ spring:
 
     #just producer for the payment since we are just publishing in payment service
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${PAYMENT_SERVICE_KAFKA_BOOTSTRAP_SERVER}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
 
 server:
-  port:8083
+  port: ${PAYMENT_SERVICE_SERVER_PORT}
 
 # razorpay configuration
 razorpay:
-  key-id: rzp_3298y8
-  key-secret:
+  key-id: ${RAZORPAY_KEY_ID}
+  key-secret: ${RAZORPAY_KEY_SECRET}
   webhook-secret:
 
 management:

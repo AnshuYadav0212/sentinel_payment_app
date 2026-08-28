@@ -8,14 +8,19 @@ import com.banking.paymentservice.repository.PaymentRepository;
 import com.razorpay.Order;
 import com.razorpay.RazorpayClient;
 import com.razorpay.RazorpayException;
+import com.razorpay.Utils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
@@ -31,11 +36,17 @@ public class PaymentService {
 
     @Value("${razorpay.key-id}")
     private String keyId;
-    @Value("${razorpay.key-secret")
+    @Value("${razorpay.key-secret}")
     private String keySecret;
     private static final String PAYMENT_COMPLETED_TOPIC="payment.completed";
     private static final String PAYMENT_FAILED_TOPIC="payment.failed";
     private final KafkaTemplate<String,Object> kafkaTemplate;
+    private final RestClient accountServiceClient =
+            RestClient.builder()
+                    .baseUrl("http://localhost:8081")
+                    .build();
+
+
     /*
      * creating the razor pay payment order firstly by creating the order in the payment gateway
      * saving payment record in db
@@ -43,9 +54,26 @@ public class PaymentService {
      * user pays
      * razorpay calls the webhook to update status for backend
      */
+    private void verifyAccountExists(String accountNumber) {
+
+        try {
+            accountServiceClient.get()
+                    .uri("/api/v1/accounts/{accountNumber}", accountNumber)
+                    .retrieve()
+                    .toBodilessEntity();
+
+        } catch (HttpClientErrorException.NotFound ex) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Account " + accountNumber + " does not exist"
+            );
+        }
+    }
+
     public PaymentOrderResponse createPaymentOrder(CreatePaymentRequest request) throws RazorpayException {
         log.info("Creating payment order for account id: {} for amount: {}", request.getAccountNumber(),request.getAmount());
 
+        verifyAccountExists(request.getAccountNumber());
         RazorpayClient razorpayClient=new RazorpayClient(keyId,keySecret);
 
         // converted amount
@@ -69,7 +97,7 @@ public class PaymentService {
         payment.setAccountNumber(request.getAccountNumber());
         payment.setAmount(request.getAmount());
         payment.setCurrency("INR");
-        payment.setStatus(PaymentStatus.COMPLETED);
+        payment.setStatus(PaymentStatus.PENDING);
         payment.setDescription(request.getDescription());
 
         Payment savedPayment=paymentRepository.save(payment);
@@ -77,7 +105,7 @@ public class PaymentService {
                 razorpayOrder.get("id").toString(),
                 request.getAmount(),
                 "INR",
-                "CREATED",
+                "PENDING",
                 keyId
                 );
     }
@@ -93,6 +121,119 @@ public class PaymentService {
             handlePaymentFailure(payload);
         }
     }
+    public void verifyPayment(
+            String internalPaymentId,
+            String razorpayPaymentId,
+            String razorpayOrderId,
+            String razorpaySignature
+    ) throws RazorpayException {
+
+        Payment payment =
+                paymentRepository.findById(internalPaymentId)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Payment not found"
+                                )
+                        );
+
+        // Critical:
+        // use the order ID stored in YOUR DB
+        if (!payment.getRazorpayOrderId()
+                .equals(razorpayOrderId)) {
+
+            throw new RuntimeException(
+                    "Razorpay order mismatch"
+            );
+        }
+
+        JSONObject options = new JSONObject();
+
+        options.put(
+                "razorpay_order_id",
+                payment.getRazorpayOrderId()
+        );
+
+        options.put(
+                "razorpay_payment_id",
+                razorpayPaymentId
+        );
+
+        options.put(
+                "razorpay_signature",
+                razorpaySignature
+        );
+
+        boolean valid =
+                Utils.verifyPaymentSignature(
+                        options,
+                        keySecret
+                );
+
+        if (!valid) {
+            throw new RuntimeException(
+                    "Invalid Razorpay signature"
+            );
+        }
+
+        // Idempotency:
+        // don't credit the account twice
+        if (payment.getStatus() ==
+                PaymentStatus.COMPLETED) {
+
+            log.info(
+                    "Payment {} already processed",
+                    payment.getId()
+            );
+
+            return;
+        }
+
+        payment.setRazorpayPaymentId(
+                razorpayPaymentId
+        );
+
+        payment.setStatus(
+                PaymentStatus.COMPLETED
+        );
+
+        paymentRepository.save(payment);
+
+        creditInternalAccount(payment);
+
+        log.info(
+                "Razorpay payment verified. Payment {}, Account {}, Amount {}",
+                payment.getId(),
+                payment.getAccountNumber(),
+                payment.getAmount()
+        );
+    }
+
+    private void creditInternalAccount(Payment payment) {
+
+        accountServiceClient.put()
+                .uri(uriBuilder ->
+                        uriBuilder
+                                .path(
+                                        "/api/v1/accounts/{accountNumber}/credit"
+                                )
+                                .queryParam(
+                                        "amount",
+                                        payment.getAmount()
+                                )
+                                .build(
+                                        payment.getAccountNumber()
+                                )
+                )
+                .retrieve()
+                .toBodilessEntity();
+
+        log.info(
+                "Credited ₹{} to internal account {}",
+                payment.getAmount(),
+                payment.getAccountNumber()
+        );
+    }
+
     private void handlePaymentSuccess(Map<String,Object> payload){
         try{
             Map<String,Object> paymentData=extractPaymentData(payload);
@@ -103,6 +244,8 @@ public class PaymentService {
                     .orElseThrow(()-> new RuntimeException(
                             "Payment not found for the order in db "+orderId
                     ));
+           // for idempotent behaviour in payment
+            if(payment.getStatus()==PaymentStatus.COMPLETED) return;
             payment.setRazorpayPaymentId(paymentId);
             payment.setStatus(PaymentStatus.COMPLETED);
             paymentRepository.save(payment);
@@ -135,7 +278,7 @@ public class PaymentService {
             payment.setFailureReason("Payment failed via razorpay");
             paymentRepository.save(payment);
 
-            // publish payment completed event to kafka
+            // publish the payment failed
             Map<String,Object> event=new HashMap<>();
             event.put("paymentId",payment.getId());
             event.put("accountNumber",payment.getAccountNumber());
@@ -149,6 +292,8 @@ public class PaymentService {
             log.error("Error handling for the payment failure: {}",e.getMessage());
         }
     }
+
+    @SuppressWarnings("unchecked")
     private  Map<String,Object> extractPaymentData(Map<String,Object> payload){
         Map<String,Object> entity= (Map<String,Object>) payload.get("payload");
         Map<String, Object> paymentWrapper= (Map<String,Object>) entity.get("payment");

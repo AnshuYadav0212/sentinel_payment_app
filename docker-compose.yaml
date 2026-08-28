@@ -14,8 +14,8 @@ services:
     container_name: my_postgres_container
     restart: always
     environment:
-      POSTGRES_USER: myuser
-      POSTGRES_PASSWORD: mypassword
+      POSTGRES_USER: ${PS_DB_USER}
+      POSTGRES_PASSWORD: ${PS_DB_PASSWORD}
       POSTGRES_DB: mydatabase
     ports:
       - "5432:5432"
@@ -31,9 +31,9 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-db:5432/myaccountservice
-      - SPRING_DATASOURCE_USERNAME=myuser
-      - SPRING_DATASOURCE_PASSWORD=mypassword
+      - SPRING_DATASOURCE_URL= ${ACCOUNT_SERVCE_ENV_SPRING_DATASOURCE_URL}
+      - SPRING_DATASOURCE_USERNAME= ${ACCOUNT_SERVICE_SPRING_DB_USER}
+      - SPRING_DATASOURCE_PASSWORD= ${ACCOUNT_SERVICE_SPRING_DB_PASSWORD}
     depends_on:
       - postgres-db
     networks:

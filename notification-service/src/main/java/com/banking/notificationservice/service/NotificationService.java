@@ -16,11 +16,11 @@ public class NotificationService {
             @Payload Map<String,Object> payload
     ) {
         try {
-            String accountNumber = (String) payload.get("accountNumber");
-            String otp = (String) payload.get("otp");
-            String transactionId = (String) payload.get("transactionId");
-            String amount = (String) payload.get("amount");
-            String reason = (String) payload.get("reason");
+            String accountNumber = String.valueOf(payload.get("accountNumber"));
+            String otp = String.valueOf(payload.get("otp"));
+            String transactionId = String.valueOf(payload.get("transactionId"));
+            String amount = String.valueOf(payload.get("amount"));
+            String reason = String.valueOf(payload.get("reason"));
 
             sendAlert(accountNumber,
                     "Transaction Verification is Required!! ", String.format(
@@ -28,7 +28,7 @@ public class NotificationService {
                                     "Reason: %s " +
                                     " A transaction of %s is pending verification. " +
                                     "Your OTP is: %s. Valid for 5 minutes. " +
-                                    "If this is you Ignore this message."
+                                    "If this is you Ignore this message.", reason,amount, otp
                     )
             );
         } catch (Exception e) {

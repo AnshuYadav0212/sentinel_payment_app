@@ -40,10 +40,12 @@ public class Transaction {
 
     private String description;
     private String failureReason;
+
+
     private String referenceNumber;
 
     @CreationTimestamp
-    private LocalDateTime createAt;
+    private LocalDateTime createdAt;
 
     @CreationTimestamp
     private LocalDateTime completedAt;

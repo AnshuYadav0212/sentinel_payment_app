@@ -8,10 +8,13 @@ import com.banking.accountservice.entity.AccountStatus;
 import com.banking.accountservice.entity.AccountType;
 import com.banking.accountservice.repository.AccountRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.security.SecureRandom;
+import java.time.LocalDateTime;
 
 @Service
 @Slf4j
@@ -39,6 +42,7 @@ public class AccountService {
         account.setDailyTransactionLimit(
                request.getAccountType()== AccountType.SAVINGS ? new BigDecimal("100000"): new BigDecimal("500000")
         );
+        account.setCreatedAt(LocalDateTime.now());
 
         Account savedAccount= accountRepository.save(account);
         log.info("Account created: {}", savedAccount.getAccountNumber());
@@ -52,7 +56,12 @@ public class AccountService {
 
     public AccountResponse getAccount(String accountNumber ){
         Account account=accountRepository.findByAccountNumber(accountNumber)
-                .orElseThrow(() ->new RuntimeException("Account Not Found"));
+                .orElseThrow(() ->
+                        new ResponseStatusException(
+                                HttpStatus.NOT_FOUND,
+                                "Account " + accountNumber + " not found"
+                        )
+                );
 
         return mapToResponse(account);
     }
@@ -138,20 +147,17 @@ public class AccountService {
         AccountResponse response = new AccountResponse();
         response.setId(account.getId());
         response.setAccountNumber(account.getAccountNumber());
-        response.setAccountHolderName(account.getAccountNumber());
+        response.setAccountHolderName(account.getAccountHolderName());
         response.setEmail(account.getEmail());
         response.setPhone(account.getPhone());
         response.setAccountType(account.getAccountType());
         response.setStatus(account.getStatus());
         response.setBalance(account.getBalance());
         response.setDailyTransactionLimit(account.getDailyTransactionLimit());
-
+        response.setCreatedAt(account.getCreatedAt());
         return response;
 
     }
-
-
-
 
 
 }

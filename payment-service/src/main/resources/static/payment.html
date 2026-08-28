@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Sentinel Banking - External Payment</title>
+
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #15172b;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 380px;
+            padding: 32px;
+            background: #20233e;
+            border-radius: 12px;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        input {
+            width: 100%;
+            padding: 14px;
+            margin-bottom: 15px;
+            box-sizing: border-box;
+            border-radius: 6px;
+            border: none;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        #status {
+            margin-top: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>🏦 Sentinel Payment Demo</h1>
+
+    <input
+            id="accountNumber"
+            type="text"
+            placeholder="Account Number"
+    >
+
+    <input
+            id="amount"
+            type="number"
+            placeholder="Amount (₹)"
+            min="1"
+            step="0.01"
+    >
+
+    <button onclick="startPayment()">
+        Pay Now
+    </button>
+
+    <div id="status"></div>
+
+</div>
+
+<script>
+    async function startPayment() {
+
+        const accountNumber =
+            document.getElementById("accountNumber").value.trim();
+
+        const amount =
+            document.getElementById("amount").value;
+
+        const status =
+            document.getElementById("status");
+
+        if (!accountNumber) {
+            status.innerText =
+                "❌ Please enter an account number.";
+            return;
+        }
+
+        if (!amount || Number(amount) <= 0) {
+            status.innerText =
+                "❌ Please enter a valid amount.";
+            return;
+        }
+
+        status.innerText = "Checking account...";
+
+        try {
+
+            const response = await fetch(
+                "/api/v1/payments/create-order",
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        accountNumber: accountNumber,
+                        amount: Number(amount),
+                        description: "External account funding"
+                    })
+                }
+            );
+
+            // Read body safely as text first
+            const rawBody = await response.text();
+
+            let data = {};
+
+            try {
+                data = rawBody
+                    ? JSON.parse(rawBody)
+                    : {};
+            } catch (parseError) {
+                console.error(
+                    "Unable to parse server response:",
+                    rawBody
+                );
+            }
+
+            // ACCOUNT DOES NOT EXIST
+            if (response.status === 404) {
+
+                const message =
+                    data.message ||
+                    data.detail ||
+                    data.error ||
+                    `Account ${accountNumber} does not exist.`;
+
+                status.innerText =
+                     `Account does not exist.`;
+
+                return;
+            }
+
+            // Other backend errors
+            if (!response.ok) {
+
+                const message =
+                    data.message ||
+                    data.detail ||
+                    data.error ||
+                    "Unable to create payment.";
+
+                status.innerText =
+                    "Account does not exist" + message;
+
+                return;
+            }
+
+            // At this point order creation succeeded
+            const order = data;
+
+            status.innerText =
+                "Opening Razorpay Checkout...";
+
+            const options = {
+
+                key: order.razorpayKeyId,
+
+                amount:
+                    Number(order.amount) * 100,
+
+                currency:
+                order.currency,
+
+                name:
+                    "Sentinel Banking",
+
+                description:
+                    "External Account Funding",
+
+                order_id:
+                order.razorpayOrderId,
+
+                handler: async function (razorpayResponse) {
+
+                    status.innerText =
+                        "Payment successful. Verifying...";
+
+                    await verifyPayment(
+                        order.paymentId,
+                        razorpayResponse
+                    );
+                },
+
+                modal: {
+                    ondismiss: function () {
+
+                        status.innerText =
+                            "Payment window closed.";
+                    }
+                }
+            };
+
+            const razorpay =
+                new Razorpay(options);
+
+            razorpay.on(
+                "payment.failed",
+                function (response) {
+
+                    status.innerText =
+                        "❌ Payment failed: " +
+                        response.error.description;
+                }
+            );
+
+            razorpay.open();
+
+        } catch (error) {
+
+            console.error(
+                "Create payment request failed:",
+                error
+            );
+
+            status.innerText =
+                "❌ Unable to connect to payment service.";
+        }
+    }
+
+    async function verifyPayment(
+        internalPaymentId,
+        razorpayResponse
+    ) {
+
+        const response = await fetch(
+            "/api/v1/payments/verify",
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json"
+                },
+
+                body: JSON.stringify({
+
+                    paymentId:
+                    internalPaymentId,
+
+                    razorpayPaymentId:
+                    razorpayResponse.razorpay_payment_id,
+
+                    razorpayOrderId:
+                    razorpayResponse.razorpay_order_id,
+
+                    razorpaySignature:
+                    razorpayResponse.razorpay_signature
+                })
+            }
+        );
+
+        const result =
+            await response.json();
+
+        if (!response.ok) {
+
+            document.getElementById("status")
+                .innerText =
+                "Payment verification failed.";
+
+            return;
+        }
+
+        document.getElementById("status")
+            .innerText =
+            "Payment successful. Account credited.";
+    }
+
+</script>
+
+</body>
+</html>

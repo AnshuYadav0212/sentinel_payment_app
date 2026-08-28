@@ -23,7 +23,7 @@ public class TransactionResponse {
     private String description;
     private String failureReason;
     private String referenceNumber;
-    private LocalDateTime createAt;
+    private LocalDateTime createdAt;
     private LocalDateTime completedAt;
 
 

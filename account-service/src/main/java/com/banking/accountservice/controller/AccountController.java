@@ -19,6 +19,7 @@ import java.math.BigDecimal;
 public class AccountController {
     private final AccountService accountService;
 
+    @PostMapping
     public ResponseEntity<AccountResponse> createAccount(
             @Valid @RequestBody CreateAccountRequest request
             ){
