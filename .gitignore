@@ -28,6 +28,11 @@ target/
 
 # Maven wrapper generated binary
 .mvn/wrapper/maven-wrapper.jar
+.mvn/
+.gitignore
+mvnw
+mvnw.cmd
+.gitattributes
 
 # Gradle
 .gradle/
