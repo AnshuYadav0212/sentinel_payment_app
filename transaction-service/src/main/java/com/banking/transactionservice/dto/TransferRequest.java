@@ -1,10 +1,7 @@
 package com.banking.transactionservice.dto;
 
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -30,6 +27,7 @@ public class TransferRequest {
     @NotBlank(message = "Receiver account number is required")
     private String receiverAccountNumber;
 
+    @DecimalMin(value = "1", message = "Transfer amount must be greater than 0")
     @NotNull(message= "Amount is required")
     @Positive(message = "Amount must be positive")
     private BigDecimal amount;

@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
 import java.util.Map;
 
 @RestController
@@ -31,7 +30,6 @@ public class PaymentController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(paymentService.createPaymentOrder(request));
     }
-
     //Razorpay webhook endpoint
 
     @PostMapping("/webhook/razorpay")
@@ -61,8 +59,4 @@ public class PaymentController {
                 )
         );
     }
-
-
-
-
 }

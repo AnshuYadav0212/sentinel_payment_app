@@ -7,7 +7,7 @@ spring:
       port: ${FRAUD_DETECTION_SERVICE_REDIS_PORT}
 
   kafka:
-    bootstrap-servers: ${FRAUD_DETECTION_SERVICE_BOOTSTRAP_SERVER}
+    bootstrap-servers: ${FRAUD_DETECTION_SERVICE_KAFKA_BOOTSTRAP_SERVER}
     consumer:
       group-id: fraud-detection-service-group
       auto-offset-reset: earliest

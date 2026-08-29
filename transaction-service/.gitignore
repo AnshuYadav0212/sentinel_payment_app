@@ -34,6 +34,8 @@ build/
 
 ### Environment variable ###
 
-../.env
+.env
+.env.*
+.env/
 
 

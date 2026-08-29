@@ -25,19 +25,6 @@ services:
     networks:
       - banking-network
 
-  account-service:
-    build: .
-    container_name: account-service
-    ports:
-      - "8080:8080"
-    environment:
-      - SPRING_DATASOURCE_URL= ${ACCOUNT_SERVCE_ENV_SPRING_DATASOURCE_URL}
-      - SPRING_DATASOURCE_USERNAME= ${ACCOUNT_SERVICE_SPRING_DB_USER}
-      - SPRING_DATASOURCE_PASSWORD= ${ACCOUNT_SERVICE_SPRING_DB_PASSWORD}
-    depends_on:
-      - postgres-db
-    networks:
-      - banking-network
 
 
   zookeeper:

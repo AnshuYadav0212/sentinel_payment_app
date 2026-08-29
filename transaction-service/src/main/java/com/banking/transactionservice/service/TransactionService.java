@@ -16,6 +16,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
+
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -56,8 +58,14 @@ public class TransactionService {
     }
 
     public TransactionResponse transfer( TransferRequest request) {
+        if (request.getAmount() == null ||
+                request.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Transfer amount must be positive");
+        }
+
         log.info("SAGA started to transfer from: {} to account {} of rupees: {}", request.getSenderAccountNumber(),request.getReceiverAccountNumber(),request.getAmount());
         validateAccount(request.getReceiverAccountNumber());
+
         accountServiceClient.deductBalance(
                 request.getSenderAccountNumber(),
                 request.getAmount()
@@ -70,7 +78,7 @@ public class TransactionService {
         transaction.setStatus(TransactionStatus.PROCESSING);
         transaction.setDescription(request.getDescription());
         transaction.setReferenceNumber(UUID.randomUUID().toString());
-        transaction.setCompletedAt(LocalDateTime.now());
+
         transaction.setCreatedAt(LocalDateTime.now());
 
         Transaction savedTransaction= transactionRepository.save(transaction);
