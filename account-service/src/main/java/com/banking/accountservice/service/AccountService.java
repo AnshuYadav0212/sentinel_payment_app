@@ -10,6 +10,7 @@ import com.banking.accountservice.repository.AccountRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
@@ -93,6 +94,7 @@ public class AccountService {
     * @param amount
      */
 
+    @Transactional
     public void deductBalance(String accountNumber, BigDecimal amount){
         log.info("Debiting balance {} from account: {}", amount,accountNumber);
         Account account = accountRepository.findByAccountNumber(accountNumber)
@@ -104,11 +106,29 @@ public class AccountService {
         if(account.getBalance().compareTo(amount) < 0){
             throw new RuntimeException("Insufficient balance in the account "+accountNumber);
         }
+        if (amount == null || amount.signum() <= 0) {
+            throw new IllegalArgumentException(
+                    "Amount must be greater than zero"
+            );
+        }
 
-        account.setBalance(account.getBalance().subtract(amount));
-        accountRepository.save(account);
-        log.info("Balance is deducted successfully, new balance is {}", account.getBalance());
+        int updatedRows =
+                accountRepository.debitIfSufficientBalance(
+                        accountNumber,
+                        amount,
+                        AccountStatus.ACTIVE
+                );
 
+        if (updatedRows == 0) {
+            throw new IllegalStateException(
+                    "Unable to debit account: account does not exist, "
+                            + "is blocked, or has insufficient balance"
+            );
+        }
+        log.info(
+                "Balance debited successfully from account: {}",
+                accountNumber
+        );
     }
 
     /*
@@ -117,6 +137,7 @@ public class AccountService {
     * @param amount
      */
 
+    @Transactional
     public void creditBalance(String accountNumber, BigDecimal amount){
         log.info("Crediting amount {} from Account {}",amount,accountNumber);
         Account account = accountRepository.findByAccountNumber(accountNumber)
