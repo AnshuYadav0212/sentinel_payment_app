@@ -9,6 +9,7 @@ import com.banking.transactionservice.entity.TransactionStatus;
 import com.banking.transactionservice.entity.TransactionType;
 import com.banking.transactionservice.event.TransactionCompletedEvent;
 import com.banking.transactionservice.event.TransactionInitiatedEvent;
+import com.banking.transactionservice.exception.InvalidOtpException;
 import com.banking.transactionservice.repository.TransactionRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -98,8 +100,6 @@ public class TransactionService {
         return mapToResponse(savedTransaction);
     }
 
-
-
     private TransactionResponse mapToResponse(Transaction transaction ){
         TransactionResponse response=new TransactionResponse();
         response.setId(transaction.getId());
@@ -133,6 +133,7 @@ public class TransactionService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional
     public TransactionResponse verifyOTP(String transactionId, String otp) {
        log.info("OTP verification for the transaction: {}",transactionId);
        Transaction transaction=transactionRepository.findById((transactionId))
@@ -145,7 +146,7 @@ public class TransactionService {
                     "Transaction {} is already completed. Ignoring duplicate OTP verification.",
                     transactionId
             );
-            return mapToResponse(transaction);
+            throw new InvalidOtpException("Invalid OTP");
         }
         if (transaction.getStatus() == TransactionStatus.FLAGGED ||
                 transaction.getStatus() == TransactionStatus.FAILED) {
@@ -156,7 +157,7 @@ public class TransactionService {
                     transaction.getStatus()
             );
 
-            return mapToResponse(transaction);
+            throw new InvalidOtpException("Invalid OTP");
         }
 
         if (transaction.getStatus() != TransactionStatus.PENDING_VERIFICATION) {
@@ -171,13 +172,16 @@ public class TransactionService {
            // otp is expired
            log.warn("OTP is expired for transaction : {} ",transactionId);
            compensateTransaction(transaction,"OTP expired, transaction is cancelled and amount is refunded to the sender");
-           return mapToResponse(transaction);
+           throw new InvalidOtpException("Invalid OTP");
        }
        if(!storedOtp.equals(otp)){
            log.warn("wrong ot, blocking account and refunding the money to {}", transactionId);
            redisTemplate.delete(otpKey);
            blockAccountAndCompensate(transaction,"Wrong otp entered, transaction is cancelled, "+ "account is blocked for security");
-           return mapToResponse(transaction);
+           transaction.setFailureReason(
+                   "Wrong OTP"
+           );
+           throw new InvalidOtpException("Invalid OTP");
        }
 
        log.info("otp is verified, completing the transaction: {}",transactionId);
@@ -186,14 +190,26 @@ public class TransactionService {
        return mapToResponse(transaction);
     }
 
+    @Transactional
     private void compensateTransaction(Transaction transaction,String reason){
         log.warn("saga compensation, refunding to  {} for amount: {}", transaction.getSenderAccountNumber(),transaction.getAmount());
+        int updatedRows =
+                transactionRepository.markForCompensation(
+                        transaction.getId(),
+                        reason
+                );
+
+        if (updatedRows == 0) {
+            log.info(
+                    "Transaction {} already compensated or no longer eligible",
+                    transaction.getId()
+            );
+            return;
+        }
+
         // credit money back to the sender
 
         accountServiceClient.creditBalance(transaction.getSenderAccountNumber(),transaction.getAmount());
-        transaction.setStatus(TransactionStatus.FLAGGED);
-        transaction.setFailureReason(reason+ " SAGA compensation is executed, amount refunded to sender at :"+ LocalDateTime.now());
-        transactionRepository.save(transaction);
 
         // publish refund event, notification alert will be sent to the sender
         Map<String,Object> refundEvent=new HashMap<>();

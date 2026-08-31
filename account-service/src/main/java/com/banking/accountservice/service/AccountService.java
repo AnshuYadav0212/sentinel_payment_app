@@ -97,15 +97,7 @@ public class AccountService {
     @Transactional
     public void deductBalance(String accountNumber, BigDecimal amount){
         log.info("Debiting balance {} from account: {}", amount,accountNumber);
-        Account account = accountRepository.findByAccountNumber(accountNumber)
-                .orElseThrow(() -> new RuntimeException("Account Not Found"));
 
-        if(account.getStatus()!=AccountStatus.ACTIVE){
-            throw new RuntimeException("Account is not active "+ accountNumber);
-        }
-        if(account.getBalance().compareTo(amount) < 0){
-            throw new RuntimeException("Insufficient balance in the account "+accountNumber);
-        }
         if (amount == null || amount.signum() <= 0) {
             throw new IllegalArgumentException(
                     "Amount must be greater than zero"
@@ -115,8 +107,7 @@ public class AccountService {
         int updatedRows =
                 accountRepository.debitIfSufficientBalance(
                         accountNumber,
-                        amount,
-                        AccountStatus.ACTIVE
+                        amount
                 );
 
         if (updatedRows == 0) {
@@ -125,6 +116,7 @@ public class AccountService {
                             + "is blocked, or has insufficient balance"
             );
         }
+
         log.info(
                 "Balance debited successfully from account: {}",
                 accountNumber
@@ -148,7 +140,6 @@ public class AccountService {
 
         log.info("Balance credit new balance {} ", account.getBalance());
     }
-
 
      /*
      * we have 12 digit number for account number
@@ -179,6 +170,5 @@ public class AccountService {
         return response;
 
     }
-
 
 }

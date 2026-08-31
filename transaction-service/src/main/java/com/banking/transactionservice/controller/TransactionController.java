@@ -46,6 +46,8 @@ public class TransactionController {
     ){
         log.info("OTP verification request for transaction:  {}",transactionId);
 
-        return ResponseEntity.ok(transactionService.verifyOTP(transactionId,otp));
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(transactionService.verifyOTP(transactionId, otp));
     }
 }

@@ -31,8 +31,7 @@ public interface AccountRepository extends JpaRepository<Account,String> {
     """)
     int debitIfSufficientBalance(
             @Param("accountNumber") String accountNumber,
-            @Param("amount") BigDecimal amount,
-            @Param("status") AccountStatus status
+            @Param("amount") BigDecimal amount
     );
 
 }
