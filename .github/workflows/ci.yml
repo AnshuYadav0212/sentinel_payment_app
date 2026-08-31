@@ -55,4 +55,4 @@ jobs:
           cache: maven
 
       - name: Build and run tests
-        run: mvn --batch-mode verifyatch-mode verify
+        run: mvn --batch-mode verify
