@@ -96,8 +96,10 @@ class AccountServiceTest {
 
     @Test
     void deductBalance_shouldFailWhenInsufficientBalance() {
-        when(accountRepository.findByAccountNumber("123456789012"))
-                .thenReturn(Optional.of(account));
+        when(accountRepository.debitIfSufficientBalance(
+                "123456789012",
+                new BigDecimal("20000")
+        )).thenReturn(0);
 
         RuntimeException exception = assertThrows(
                 RuntimeException.class,
@@ -109,7 +111,10 @@ class AccountServiceTest {
 
         assertTrue(exception.getMessage().contains("Insufficient balance"));
 
-        verify(accountRepository, never()).save(any());
+        verify(accountRepository).debitIfSufficientBalance(
+                "123456789012",
+                new BigDecimal("20000")
+        );
     }
 
     @Test

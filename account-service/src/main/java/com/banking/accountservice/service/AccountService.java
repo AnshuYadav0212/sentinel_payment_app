@@ -6,6 +6,7 @@ import com.banking.accountservice.dto.CreateAccountRequest;
 import com.banking.accountservice.entity.Account;
 import com.banking.accountservice.entity.AccountStatus;
 import com.banking.accountservice.entity.AccountType;
+import com.banking.accountservice.exception.InsufficientBalanceException;
 import com.banking.accountservice.repository.AccountRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -111,9 +112,8 @@ public class AccountService {
                 );
 
         if (updatedRows == 0) {
-            throw new IllegalStateException(
-                    "Unable to debit account: account does not exist, "
-                            + "is blocked, or has insufficient balance"
+            throw new InsufficientBalanceException(
+                    "Insufficient balance"
             );
         }
 
