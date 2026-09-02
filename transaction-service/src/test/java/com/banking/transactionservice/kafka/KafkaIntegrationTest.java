@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.support.serializer.JsonSerializer;
+import org.springframework.kafka.support.serializer.JacksonJsonSerializer ;
 import org.springframework.kafka.test.EmbeddedKafkaBroker;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.kafka.test.utils.KafkaTestUtils;
@@ -47,16 +47,17 @@ class KafkaIntegrationTest {
                 new DefaultKafkaProducerFactory<>(
                         producerProps,
                         new StringSerializer(),
-                        new JsonSerializer<>()
+                        new JacksonJsonSerializer <>()
                 );
 
         kafkaTemplate = new KafkaTemplate<>(producerFactory);
 
         Map<String, Object> consumerProps =
                 KafkaTestUtils.consumerProps(
+                        embeddedKafka,
                         "kafka-integration-test-" + System.nanoTime(),
-                        "false",
-                        embeddedKafka
+                        false
+
                 );
         consumerProps.put(
                 ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,

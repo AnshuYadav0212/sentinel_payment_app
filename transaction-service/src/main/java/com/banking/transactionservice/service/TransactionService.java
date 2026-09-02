@@ -146,7 +146,7 @@ public class TransactionService {
                     "Transaction {} is already completed. Ignoring duplicate OTP verification.",
                     transactionId
             );
-            throw new InvalidOtpException("Invalid OTP");
+            return mapToResponse(transaction);
         }
         if (transaction.getStatus() == TransactionStatus.FLAGGED ||
                 transaction.getStatus() == TransactionStatus.FAILED) {
@@ -157,7 +157,7 @@ public class TransactionService {
                     transaction.getStatus()
             );
 
-            throw new InvalidOtpException("Invalid OTP");
+            return mapToResponse(transaction);
         }
 
         if (transaction.getStatus() != TransactionStatus.PENDING_VERIFICATION) {
@@ -172,7 +172,7 @@ public class TransactionService {
            // otp is expired
            log.warn("OTP is expired for transaction : {} ",transactionId);
            compensateTransaction(transaction,"OTP expired, transaction is cancelled and amount is refunded to the sender");
-           throw new InvalidOtpException("Invalid OTP");
+           throw new InvalidOtpException("OTP expired");
        }
        if(!storedOtp.equals(otp)){
            log.warn("wrong ot, blocking account and refunding the money to {}", transactionId);

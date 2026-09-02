@@ -7,6 +7,7 @@ import com.banking.transactionservice.dto.TransferRequest;
 import com.banking.transactionservice.entity.Transaction;
 import com.banking.transactionservice.entity.TransactionStatus;
 import com.banking.transactionservice.entity.TransactionType;
+import com.banking.transactionservice.exception.InvalidOtpException;
 import com.banking.transactionservice.repository.TransactionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -227,15 +228,20 @@ class TransactionServiceTest {
                 .thenReturn(Optional.of(transaction));
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.get("verification:otptx-3")).thenReturn(null);
-        when(transactionRepository.save(any(Transaction.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
 
-        TransactionResponse response = transactionService.verifyOTP("tx-3", "123456");
+        when(transactionRepository.markForCompensation(
+                eq("tx-3"),
+                contains("OTP expired")
+        )).thenReturn(1);
+        assertThatThrownBy(() ->
+                transactionService.verifyOTP("tx-3", "123456")
+        )
+                .isInstanceOf(InvalidOtpException.class)
+                .hasMessage("OTP expired");
 
-        assertThat(response.getStatus()).isEqualTo(TransactionStatus.FLAGGED);
         verify(accountServiceClient)
                 .creditBalance("123456789012", new BigDecimal("500"));
-        verify(transactionRepository).save(transaction);
+
         verify(kafkaTemplate).send(eq("transaction.refunded"), eq("tx-3"), any());
     }
 
