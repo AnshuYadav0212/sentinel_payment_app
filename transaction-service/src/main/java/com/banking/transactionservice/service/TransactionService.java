@@ -10,6 +10,7 @@ import com.banking.transactionservice.entity.TransactionType;
 import com.banking.transactionservice.event.TransactionCompletedEvent;
 import com.banking.transactionservice.event.TransactionInitiatedEvent;
 import com.banking.transactionservice.exception.InvalidOtpException;
+import com.banking.transactionservice.metrics.TransactionMetrics;
 import com.banking.transactionservice.repository.TransactionRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +37,7 @@ public class TransactionService {
     private final AccountServiceClient accountServiceClient;
     private final KafkaTemplate<String,Object> kafkaTemplate;
     private final RedisTemplate<String,Object> redisTemplate;
+    private final TransactionMetrics transactionMetrics;
 
     private static final String TRANSACTION_INITIATED_TOPIC="transaction.initiated";
     private static final String TRANSACTION_COMPLETED_TOPIC="transaction.completed";
@@ -93,6 +95,8 @@ public class TransactionService {
                 savedTransaction.getAmount(),
                 savedTransaction.getDescription()
         );
+
+        transactionMetrics.transactionInitiated();
 
         kafkaTemplate.send(TRANSACTION_INITIATED_TOPIC,savedTransaction.getId(),event);
         log.info("SAGA completed till publish fraud check {}", savedTransaction.getId() );
@@ -156,7 +160,7 @@ public class TransactionService {
                     transactionId,
                     transaction.getStatus()
             );
-
+            transactionMetrics.fraudDetected();
             return mapToResponse(transaction);
         }
 
@@ -175,17 +179,19 @@ public class TransactionService {
            throw new InvalidOtpException("OTP expired");
        }
        if(!storedOtp.equals(otp)){
-           log.warn("wrong ot, blocking account and refunding the money to {}", transactionId);
+           log.warn("wrong otp, blocking account and refunding the money to {}", transactionId);
            redisTemplate.delete(otpKey);
            blockAccountAndCompensate(transaction,"Wrong otp entered, transaction is cancelled, "+ "account is blocked for security");
            transaction.setFailureReason(
                    "Wrong OTP"
            );
+           transactionMetrics.fraudDetected();
            throw new InvalidOtpException("Invalid OTP");
        }
 
        log.info("otp is verified, completing the transaction: {}",transactionId);
        redisTemplate.delete(otpKey);
+
        completeTransaction(transaction);
        return mapToResponse(transaction);
     }
@@ -211,6 +217,7 @@ public class TransactionService {
 
         accountServiceClient.creditBalance(transaction.getSenderAccountNumber(),transaction.getAmount());
 
+        transactionMetrics.transactionRefunded();
         // publish refund event, notification alert will be sent to the sender
         Map<String,Object> refundEvent=new HashMap<>();
         refundEvent.put("transactionId",transaction.getId());
@@ -247,6 +254,7 @@ public class TransactionService {
                 transaction.getAmount(),
                 transaction.getDescription()
         );
+        transactionMetrics.transactionCompleted();
         kafkaTemplate.send(TRANSACTION_COMPLETED_TOPIC,transaction.getId(),completedEvent);
         log.info("saga is completed, transaction {} is completed",transaction.getId());
     }

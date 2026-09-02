@@ -73,6 +73,7 @@
             <optional>true</optional>
         </dependency>
 
+
         <!-- FIX: Kept only valid test dependencies -->
         <dependency>
             <groupId>org.springframework.kafka</groupId>
@@ -93,6 +94,10 @@
             <groupId>org.testcontainers</groupId>
             <artifactId>testcontainers-postgresql</artifactId>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
         </dependency>
     </dependencies>
 
