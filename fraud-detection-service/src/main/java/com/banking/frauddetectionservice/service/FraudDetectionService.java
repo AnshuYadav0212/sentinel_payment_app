@@ -1,6 +1,7 @@
 package com.banking.frauddetectionservice.service;
 
 import com.banking.frauddetectionservice.client.AccountServiceClient;
+import com.banking.frauddetectionservice.metrics.FraudDetectionMetrics;
 import com.banking.frauddetectionservice.model.FraudCheckResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,9 +22,10 @@ import java.util.concurrent.TimeUnit;
 public class FraudDetectionService {
 
     private final AccountServiceClient accountServiceClient;
+    private final FraudDetectionMetrics fraudDetectionMetrics;
+
     private static final String VERIFICATION_REQUIRED_TOPIC="verification.required";
     private static final String FRAUD_CHECK_CLEAN_RESULT_TOPIC="fraud.check.clean";
-
     @Value("${fraud.max-transaction-per-minumte}")
     private int maxTransactionsPerMinute;
 
@@ -61,6 +63,7 @@ public class FraudDetectionService {
             verificationEvent.put("amount",amount);
             verificationEvent.put("reason",result.getReason());
 
+            fraudDetectionMetrics.fraudsDetects();
             kafkaTemplate.send(VERIFICATION_REQUIRED_TOPIC,transactionId,verificationEvent);
         }
         else{
@@ -100,6 +103,7 @@ public class FraudDetectionService {
             return new FraudCheckResult(true, "Unusual transaction amount, more than 90 % of account balance");
         }
 
+        fraudDetectionMetrics.fraudsChecks();
         return new FraudCheckResult(false,null);
 
     }

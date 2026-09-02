@@ -4,6 +4,7 @@ import com.banking.paymentservice.dto.CreatePaymentRequest;
 import com.banking.paymentservice.dto.PaymentOrderResponse;
 import com.banking.paymentservice.entity.Payment;
 import com.banking.paymentservice.entity.PaymentStatus;
+import com.banking.paymentservice.metrics.PaymentMetrics;
 import com.banking.paymentservice.repository.PaymentRepository;
 import com.razorpay.Order;
 import com.razorpay.RazorpayClient;
@@ -33,6 +34,7 @@ import java.util.UUID;
 public class PaymentService {
 
     private final PaymentRepository paymentRepository;
+    private final PaymentMetrics paymentMetrics;
 
     @Value("${razorpay.key-id}")
     private String keyId;
@@ -101,6 +103,7 @@ public class PaymentService {
         payment.setDescription(request.getDescription());
 
         Payment savedPayment=paymentRepository.save(payment);
+        paymentMetrics.paymentsCreated();
         return new PaymentOrderResponse(savedPayment.getId(),
                 razorpayOrder.get("id").toString(),
                 request.getAmount(),
@@ -140,7 +143,7 @@ public class PaymentService {
         // use the order ID stored in YOUR DB
         if (!payment.getRazorpayOrderId()
                 .equals(razorpayOrderId)) {
-
+            paymentMetrics.paymentsFailed();
             throw new RuntimeException(
                     "Razorpay order mismatch"
             );
@@ -170,6 +173,7 @@ public class PaymentService {
                 );
 
         if (!valid) {
+            paymentMetrics.paymentsFailed();
             throw new RuntimeException(
                     "Invalid Razorpay signature"
             );
@@ -196,7 +200,9 @@ public class PaymentService {
                 PaymentStatus.COMPLETED
         );
 
+
         paymentRepository.save(payment);
+        paymentMetrics.paymentsVerified();
 
         creditInternalAccount(payment);
 
