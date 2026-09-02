@@ -8,6 +8,7 @@ import com.banking.transactionservice.entity.Transaction;
 import com.banking.transactionservice.entity.TransactionStatus;
 import com.banking.transactionservice.entity.TransactionType;
 import com.banking.transactionservice.exception.InvalidOtpException;
+import com.banking.transactionservice.metrics.TransactionMetrics;
 import com.banking.transactionservice.repository.TransactionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,6 +46,8 @@ class TransactionServiceTest {
     private RedisTemplate<String, Object> redisTemplate;
 
     @Mock
+    private TransactionMetrics transactionMetrics;
+    @Mock
     private ValueOperations<String, Object> valueOperations;
 
     private TransactionService transactionService;
@@ -55,7 +58,8 @@ class TransactionServiceTest {
                 transactionRepository,
                 accountServiceClient,
                 kafkaTemplate,
-                redisTemplate
+                redisTemplate,
+                transactionMetrics
         );
     }
 
@@ -80,6 +84,7 @@ class TransactionServiceTest {
         assertThat(response.getReceiverAccountNumber()).isEqualTo("987654321012");
         assertThat(response.getAmount()).isEqualByComparingTo("500");
 
+        verify(transactionMetrics).transactionInitiated();
         verify(accountServiceClient).deductBalance("123456789012", new BigDecimal("500"));
         verify(transactionRepository).save(any(Transaction.class));
         verify(kafkaTemplate).send(eq("transaction.initiated"), eq(response.getId()), any());
@@ -176,6 +181,7 @@ class TransactionServiceTest {
 
         TransactionResponse response = transactionService.transfer(request);
 
+
         assertThat(response.getStatus()).isEqualTo(TransactionStatus.PROCESSING);
         assertThat(response.getCompletedAt()).isNull();
     }
@@ -197,9 +203,11 @@ class TransactionServiceTest {
 
         assertThat(response.getStatus()).isEqualTo(TransactionStatus.COMPLETED);
         assertThat(response.getCompletedAt()).isNotNull();
+
         verify(redisTemplate).delete("verification:otptx-1");
         verify(transactionRepository).save(transaction);
         verify(kafkaTemplate).send(eq("transaction.completed"), eq("tx-1"), any());
+
     }
 
     @Test
@@ -243,6 +251,7 @@ class TransactionServiceTest {
                 .creditBalance("123456789012", new BigDecimal("500"));
 
         verify(kafkaTemplate).send(eq("transaction.refunded"), eq("tx-3"), any());
+        verify(transactionMetrics).transactionRefunded();
     }
 
     private Transaction processingTransaction(TransactionStatus status) {
