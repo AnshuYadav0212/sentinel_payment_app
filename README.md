@@ -1,8 +1,8 @@
 # sentinel_payment_app
 This repository contains a microservices architecture implemented to detect and prevent fraud in digital payment workflows.
 
-The platform is split into independently deployable **microservices** and uses REST for synchronous communication and Apache Kafka for asynchronous event-driven workflows. PostgreSQL provides transactional persistence, Redis is used for short-lived OTP state, and Docker is used to run infrastructure locally.
-The platform is split into independently deployable microservices and uses REST for synchronous communication and Apache Kafka for asynchronous event-driven workflows. PostgreSQL provides transactional persistence, Redis is used for short-lived OTP state, and Docker is used to run infrastructure locally.
+The application is split into independently deployable **microservices** and uses REST for synchronous communication and Apache Kafka for asynchronous event-driven workflows. PostgreSQL provides transactional persistence, Redis is used for short-lived OTP state, and Docker is used to run infrastructure locally.
+The application is split into independently deployable microservices and uses REST for synchronous communication and Apache Kafka for asynchronous event-driven workflows. PostgreSQL provides transactional persistence, Redis is used for short-lived OTP state, and Docker is used to run infrastructure locally.
 
 ## Table of Contents
 - Architecture
